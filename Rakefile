@@ -9,7 +9,11 @@ require 'bundler/gem_tasks'
 require 'rake/extensiontask'
 require 'rake/testtask'
 
-Rake::ExtensionTask.new :protoc_js_core
+def gemspec
+  @gemspec ||= eval(File.read File.expand_path('../protobuf-closure-library.gemspec', __FILE__))
+end
+
+Rake::ExtensionTask.new :protoc_js_core, gemspec
 
 Rake::TestTask.new :test  do |t|
   t.libs << 'lib'
