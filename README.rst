@@ -25,6 +25,7 @@ Usage
 
 ::
   
+  require 'protobuf-closure-library'
   ProtobufClosureLibrary::ProtocJs.compile input_proto_file,
                                            output_dir, optional_protoc_arg, ...
 
