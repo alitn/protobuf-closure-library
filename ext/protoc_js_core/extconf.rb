@@ -1,13 +1,11 @@
 require 'mkmf-rice'
 
 SOURCE_DIR = File.expand_path File.dirname(__FILE__)
-BUILD_DIR = File.expand_path File.join(File.dirname(__FILE__), '..', '..', 'tmp', 'build')
 COMPILED_PROTO_DIR = SOURCE_DIR #File.join(SOURCE_DIR, 'js')
 
-HEADER_DIRS = [BUILD_DIR, '/usr/local/include', '/usr/include']
+HEADER_DIRS = ['/usr/local/include', '/usr/include']
 LIB_DIRS = ['/usr/local/lib', '/usr/lib']
 
-Dir::mkdir BUILD_DIR if !FileTest::directory?(BUILD_DIR)
 Dir::mkdir COMPILED_PROTO_DIR if !FileTest::directory?(COMPILED_PROTO_DIR)
 
 def generate_proto_deps proto
