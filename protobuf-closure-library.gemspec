@@ -24,4 +24,6 @@ Gem::Specification.new do |s|
   s.add_dependency "rice"
   s.add_development_dependency "shoulda"
   s.add_development_dependency "rake-compiler"
+
+  s.extensions    = ['ext/protoc_js_core/extconf.rb']
 end
