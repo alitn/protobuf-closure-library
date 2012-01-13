@@ -2,6 +2,10 @@ module ProtobufClosureLibrary
 
 class ProtocJs
   def self.compile proto_file, out_dir, *args
+    if !File.exist? out_dir
+      FileUtils.mkdir_p out_dir
+    end
+
     ProtocJsCore.compile RUBY_BIN, proto_file, 
       @@static_proto_path | [
         "--js_out=#{out_dir}",
