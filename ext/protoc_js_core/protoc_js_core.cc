@@ -5,21 +5,11 @@ using namespace std;
 #include "rice/Class.hpp"
 #include "rice/Array.hpp"
 #include "rice/String.hpp"
-#include "rice/Exception.hpp"
 using namespace Rice;
 
 #include <google/protobuf/compiler/plugin.h>
 #include <google/protobuf/compiler/command_line_interface.h>
 #include "code_generator.h"
-
-class RuntimeException : public exception {
-public:
-  RuntimeException(string ss) : s(ss) {};
-  virtual ~RuntimeException() throw() {};
-  virtual const char* what() const throw() { return s.c_str(); };
-private:
-  string s;
-};
 
 void compile (Object ruby_bin, Object proto_file, Object args) {
   // Prepare protoc cli.
@@ -41,17 +31,18 @@ void compile (Object ruby_bin, Object proto_file, Object args) {
   stringstream cerr_buffer;
   streambuf *original_cerr_buffer = cerr.rdbuf(cerr_buffer.rdbuf());
 
+  // Run the compiler.
   int result = protoc_cli.Run((int) argv.size(), &argv[0]);
 
+  // Check for errors.
   if (result != 0) {
-    // Use ostringstream to avoid segfault.
-    ostringstream oss;
-    oss <<
-      "An error occured while running protoc:\n"
-      "-- Protoc output ---------------------\n\n"
-      << cerr_buffer.str() << endl <<
-      "--------------------------------------\n";
-    throw RuntimeException(oss.str());
+    string err = cerr_buffer.str();
+    rb_raise(rb_eRuntimeError,
+      "\nAn error occured while running protoc:\n"
+      "-- Protoc output ---------------------\n\n%s\n"
+      "--------------------------------------\n",
+      err.c_str()
+    );
   }
 
   // De-redirect cerr.
