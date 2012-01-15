@@ -40,6 +40,7 @@ class CodeGenerator : public ::google::protobuf::compiler::CodeGenerator {
 
  private:
   std::string name_;
+  static std::string js_superclass_;
 
   static std::string JsFullName(
       const google::protobuf::FileDescriptor *file,

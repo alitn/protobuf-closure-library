@@ -17,6 +17,7 @@
 #include "code_generator.h"
 
 #include <string>
+#include <vector>
 #include <iostream>  // NOLINT
 #include <sstream>  // NOLINT
 
@@ -37,11 +38,25 @@ CodeGenerator::CodeGenerator(const std::string &name)
 
 CodeGenerator::~CodeGenerator() {}
 
+std::string CodeGenerator::js_superclass_ = "goog.proto2.Message";
+
 bool CodeGenerator::Generate(
     const google::protobuf::FileDescriptor *file,
-    const std::string &/* parameter */,
+    const std::string & parameter ,
     google::protobuf::compiler::OutputDirectory *output_directory,
     std::string *error) const {
+
+  std::vector<std::pair<std::string, std::string> > options;
+  google::protobuf::compiler::ParseGeneratorParameter(parameter, &options);
+  
+  for (unsigned int i = 0; i < options.size(); i++) {
+    if (options[i].first == "js_superclass") {
+      CodeGenerator::js_superclass_ = options[i].second;
+    } else {
+      *error = "Unknown generator option: " + options[i].first;
+      return false;
+    }
+  }
 
   const std::string file_name = file->name();
   std::string output_file_name = file->name();
@@ -76,8 +91,8 @@ bool CodeGenerator::Generate(
   }
 
   printer.Print("\n");
-  printer.Print("goog.require('goog.proto2.Message');\n"
-                "\n");
+  printer.Print("goog.require('$js_superclass$');\n"
+                "\n", "js_superclass", CodeGenerator::js_superclass_);
   for (int i = 0; i < file->dependency_count(); ++i) {
     for (int j = 0; j < file->dependency(i)->message_type_count(); j++) {
       printer.Print(
@@ -172,30 +187,33 @@ void CodeGenerator::GenDescriptor(
                  "/**\n"
                  " * Message $name$.\n"
                  " * @constructor\n"
-                 " * @extends {goog.proto2.Message}\n"
+                 " * @extends {$js_superclass$}\n"
                  " */\n",
-                 "name", message->name());
+                 "name", message->name(),
+                 "js_superclass", CodeGenerator::js_superclass_);
   printer->Print("$name$ = function() {\n",
                  "name", JsFullName(message->file(),
                                     message->full_name()));
   printer->Indent();
-  printer->Print("goog.proto2.Message.apply(this);\n");
+  printer->Print("$js_superclass$.apply(this);\n", "js_superclass", CodeGenerator::js_superclass_);
   printer->Outdent();
   printer->Print("};\n"
-                 "goog.inherits($name$, goog.proto2.Message);\n"
+                 "goog.inherits($name$, $js_superclass$);\n"
                  "\n"
                  "\n",
                  "name", JsFullName(message->file(),
-                                    message->full_name()));
+                                    message->full_name()),
+                  "js_superclass", CodeGenerator::js_superclass_);
 
   printer->Print(
       "/**\n"
-      " * Overrides {@link goog.proto2.Message#clone} to specify its exact "
+      " * Overrides {@link $js_superclass$#clone} to specify its exact "
       "return type.\n"
       " * @return {!$name$} The cloned message.\n"
       " * @override\n"
       " */\n"
       "$name$.prototype.clone;\n",
+      "js_superclass", CodeGenerator::js_superclass_,
       "name", JsFullName(message->file(),
                          message->full_name()));
 
@@ -546,7 +564,8 @@ void CodeGenerator::GenDescriptorMetadata(
       google::protobuf::io::Printer *printer) {
   printer->Print("\n"
                  "\n"
-                 "goog.proto2.Message.set$$Metadata($name$, {\n",
+                 "$js_superclass$.set$$Metadata($name$, {\n",
+                 "js_superclass", CodeGenerator::js_superclass_,
                  "name", JsFullName(message->file(),
                                     message->full_name()));
   printer->Indent();
@@ -714,7 +733,8 @@ void CodeGenerator::GenFieldDescriptorMetadata(
   if (field->is_repeated()) {
     printer->Print("repeated: true,\n");
   }
-  printer->Print("fieldType: goog.proto2.Message.FieldType.$js_type$,\n",
+  printer->Print("fieldType: $js_superclass$.FieldType.$js_type$,\n",
+                 "js_superclass", CodeGenerator::js_superclass_,
                  "js_type", js_type);
   if (field->has_default_value() ||
       field->type() == google::protobuf::FieldDescriptor::TYPE_ENUM) {

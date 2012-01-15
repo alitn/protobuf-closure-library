@@ -1,16 +1,24 @@
 module ProtobufClosureLibrary
 
 class ProtocJs
-  def self.compile proto_file, out_dir, *args
+  def self.compile proto_file, out_dir, options
+    options = {
+      generator_options: {},
+      protoc_options: []
+    }.merge options
+
     if !File.exist? out_dir
       FileUtils.mkdir_p out_dir
     end
 
+    generator_options = options[:generator_options].map{|k, v| "#{k}=#{v}" }.join(',')
+    js_out_options = generator_options.empty? ? out_dir : "#{generator_options}:#{out_dir}"
+
     ProtocJsCore.compile RUBY_BIN, proto_file, 
       @@static_proto_path | [
-        "--js_out=#{out_dir}",
+        "--js_out=#{js_out_options}",
         "--proto_path=#{File.dirname proto_file}"
-      ] | args
+      ] | options[:protoc_options]
   end
 
 private

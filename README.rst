@@ -27,6 +27,13 @@ Usage
   
   require 'protobuf-closure-library'
   ProtobufClosureLibrary::ProtocJs.compile input_proto_file,
-                                           output_dir, optional_protoc_arg, ...
+                                           output_dir, {
+                                             generator_options: {key: value},
+                                             protoc_options: []
+                                           }
 
 This generated a ``.pb.js`` file correponded to ``input_proto_file`` in ``output_dir``. The output file contains a subclass of  `goog.proto2.Message <http://closure-library.googlecode.com/svn/docs/class_goog_proto2_Message.html>`_.
+
+By default, the generated message classes are subclasses of ``goog.proto2.Message``. This can be overriden by using ``generator_options: {js_superclass: 'cusom_package.CustomClass'}`` which generates message classes with ``cusom_package.CustomClass`` as the superclass.
+
+Other protoc options can be passed to the compiler by ``protoc_options`` key.
