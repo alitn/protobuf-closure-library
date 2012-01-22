@@ -10,9 +10,9 @@ Installation
 
 `Protobuf <http://code.google.com/p/protobuf/>`_ runtime compiler and development header and libraries must be present at gem installation time.
 
-* Under linux, user the right development package, eg ``libprotobuf-dev`` for ubuntu.
+* Under linux, user the right development package, eg ``libprotoc-dev`` for ubuntu.
 * Under osx, use ``brew install protobuf``.
-* under windows, use the `official protobuf binaries <http://code.google.com/p/protobuf/downloads/list>`_.
+* Under windows, use the `official protobuf binaries <http://code.google.com/p/protobuf/downloads/list>`_.
 
 Then, install the gem:
 
