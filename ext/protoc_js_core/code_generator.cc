@@ -39,6 +39,7 @@ CodeGenerator::CodeGenerator(const std::string &name)
 CodeGenerator::~CodeGenerator() {}
 
 std::string CodeGenerator::js_superclass_ = "goog.proto2.Message";
+bool CodeGenerator::advanced_ = false;
 
 bool CodeGenerator::Generate(
     const google::protobuf::FileDescriptor *file,
@@ -52,6 +53,8 @@ bool CodeGenerator::Generate(
   for (unsigned int i = 0; i < options.size(); i++) {
     if (options[i].first == "js_superclass") {
       CodeGenerator::js_superclass_ = options[i].second;
+    } else if (options[i].first == "advanced" && options[i].second == "true") {
+      CodeGenerator::advanced_ = true;
     } else {
       *error = "Unknown generator option: " + options[i].first;
       return false;
@@ -411,16 +414,17 @@ void CodeGenerator::GenFieldDescriptor(
                    " * Sets the value of the $name$ field.\n",
                    "name", field->name());
     printer->Print(" * @param {$opt$$type$} value The value.\n"
+                   " * @param {Object} opt_options Options.\n"
                    " */\n",
                    "opt", type_is_primitive ? "" : "!",
                    "type", type);
-    printer->Print("$prefix$.prototype.set$field$ = function(value) {\n",
+    printer->Print("$prefix$.prototype.set$field$ = function(value, opt_options) {\n",
                    "prefix", JsFullName(field->containing_type()->file(),
                                         field->containing_type()->full_name()),
                    "field", upper_name);
     printer->Indent();
     printer->Print(
-        "this.set$$Value($number$, value);\n",
+        "this.set$$Value($number$, value, opt_options);\n",
         "number", number.str());
     printer->Outdent();
     printer->Print("};\n"
@@ -526,6 +530,61 @@ void CodeGenerator::GenFieldDescriptor(
                  "number", number.str());
   printer->Outdent();
   printer->Print("};\n");
+
+  if (CodeGenerator::advanced_) {
+    // update events
+    printer->Print("\n"
+                   "/**\n"
+                   " * Listens to update event on $name$ field.\n"
+                   " * @param {function} callback The callback to invoke.\n"
+                   " * @param {Object} context The 'this' sent to callback..\n"
+                   " */\n",
+                   "name", field->name());
+    printer->Print("$prefix$.prototype.onUpdate$field$ = function(callback, context) {\n",
+                   "prefix", JsFullName(field->containing_type()->file(),
+                                        field->containing_type()->full_name()),
+                   "field", upper_name);
+    printer->Indent();
+    printer->Print("this.listen('update:$number$', callback, context);\n",
+                   "number", number.str());
+    printer->Outdent();
+    printer->Print("};\n");
+    printer->Print("\n"
+                   "/**\n"
+                   " * Clears update event on $name$ field.\n"
+                   " */\n",
+                   "name", field->name());
+    printer->Print("$prefix$.prototype.forgetUpdate$field$ = function() {\n",
+                   "prefix", JsFullName(field->containing_type()->file(),
+                                        field->containing_type()->full_name()),
+                   "field", upper_name);
+    printer->Indent();
+    printer->Print("this.forget('update:$number$');\n",
+                   "number", number.str());
+    printer->Outdent();
+    printer->Print("};\n");
+
+    // collections
+    printer->Print("\n"
+                   "/**\n"
+                   " * Returns the collection in the $name$ field.\n",
+                   "name", field->name());
+    printer->Print(
+        " * @return {Object} The values in the field.\n"
+        " */\n");
+    printer->Print("$prefix$.prototype.$field$Collection = function() {\n",
+                   "prefix", JsFullName(field->containing_type()->file(),
+                                        field->containing_type()->full_name()),
+                   "field", field->camelcase_name());
+    printer->Indent();
+    printer->Print(
+        "return (this.collection$$Values($number$));"
+        "\n",
+        "number", number.str());
+    printer->Outdent();
+    printer->Print("};\n"
+                   "\n");
+  } // if (CodeGenerator::advanced_)
 }
 
 void CodeGenerator::GenEnumDescriptor(
