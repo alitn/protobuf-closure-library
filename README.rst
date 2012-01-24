@@ -20,6 +20,11 @@ Then, install the gem:
   
   gem install protobuf-closure-library
 
+Working with rails
+''''''''''''''''''
+
+When using this gem with rails, try `yellow-brick-road <https://github.com/alitn/yellow-brick-road>`_.
+
 Usage
 +++++
 
