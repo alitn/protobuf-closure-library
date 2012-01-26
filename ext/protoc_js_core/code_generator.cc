@@ -199,9 +199,6 @@ void CodeGenerator::GenDescriptor(
                                     message->full_name()));
   printer->Indent();
   printer->Print("$js_superclass$.apply(this);\n", "js_superclass", CodeGenerator::js_superclass_);
-  if (CodeGenerator::advanced_) {
-    printer->Print("this.initialize();\n");
-  }
   printer->Outdent();
   printer->Print("};\n"
                  "goog.inherits($name$, $js_superclass$);\n"
