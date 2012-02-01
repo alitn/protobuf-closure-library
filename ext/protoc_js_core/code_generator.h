@@ -41,6 +41,7 @@ class CodeGenerator : public ::google::protobuf::compiler::CodeGenerator {
  private:
   std::string name_;
   static std::string js_superclass_;
+  static std::string js_collection_superclass_;
   static bool advanced_;
 
   static std::string JsFullName(
@@ -73,6 +74,10 @@ class CodeGenerator : public ::google::protobuf::compiler::CodeGenerator {
 
   static void GenFieldDescriptorMetadata(
       const google::protobuf::FieldDescriptor *field,
+      google::protobuf::io::Printer *printer);
+  
+  static void GenCollection(
+      const google::protobuf::Descriptor *message,
       google::protobuf::io::Printer *printer);
 };
 

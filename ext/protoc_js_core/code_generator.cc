@@ -39,6 +39,7 @@ CodeGenerator::CodeGenerator(const std::string &name)
 CodeGenerator::~CodeGenerator() {}
 
 std::string CodeGenerator::js_superclass_ = "goog.proto2.Message";
+std::string CodeGenerator::js_collection_superclass_ = "";
 bool CodeGenerator::advanced_ = false;
 
 bool CodeGenerator::Generate(
@@ -53,6 +54,8 @@ bool CodeGenerator::Generate(
   for (unsigned int i = 0; i < options.size(); i++) {
     if (options[i].first == "js_superclass") {
       CodeGenerator::js_superclass_ = options[i].second;
+    } else if (options[i].first == "js_collection_superclass") {
+      CodeGenerator::js_collection_superclass_ = options[i].second;
     } else if (options[i].first == "advanced" && options[i].second == "true") {
       CodeGenerator::advanced_ = true;
     } else {
@@ -94,8 +97,13 @@ bool CodeGenerator::Generate(
   }
 
   printer.Print("\n");
-  printer.Print("goog.require('$js_superclass$');\n"
-                "\n", "js_superclass", CodeGenerator::js_superclass_);
+  printer.Print("goog.require('$js_superclass$');\n",
+                "js_superclass", CodeGenerator::js_superclass_);
+  if (CodeGenerator::advanced_) {
+    printer.Print("goog.require('$js_collection_superclass$');\n",
+                  "js_collection_superclass", CodeGenerator::js_collection_superclass_);
+  }
+  printer.Print("\n");
   for (int i = 0; i < file->dependency_count(); ++i) {
     for (int j = 0; j < file->dependency(i)->message_type_count(); j++) {
       printer.Print(
@@ -198,7 +206,8 @@ void CodeGenerator::GenDescriptor(
                  "name", JsFullName(message->file(),
                                     message->full_name()));
   printer->Indent();
-  printer->Print("$js_superclass$.apply(this);\n", "js_superclass", CodeGenerator::js_superclass_);
+  printer->Print("$js_superclass$.apply(this);\n",
+                 "js_superclass", CodeGenerator::js_superclass_);
   printer->Outdent();
   printer->Print("};\n"
                  "goog.inherits($name$, $js_superclass$);\n"
@@ -241,6 +250,11 @@ void CodeGenerator::GenDescriptor(
         printer);
     printer->Print("\n"
                    "\n");
+  }
+
+  // collection
+  if (CodeGenerator::advanced_) {
+    CodeGenerator::GenCollection(message, printer);
   }
 }
 
@@ -536,7 +550,7 @@ void CodeGenerator::GenFieldDescriptor(
     printer->Print("\n"
                    "/**\n"
                    " * Listens to update event on $name$ field.\n"
-                   " * @param {function} callback The callback to invoke.\n"
+                   " * @param {Function} callback The callback to invoke.\n"
                    " * @param {Object} context The 'this' sent to callback..\n"
                    " */\n",
                    "name", field->name());
@@ -565,25 +579,27 @@ void CodeGenerator::GenFieldDescriptor(
     printer->Print("};\n");
 
     // collections
-    printer->Print("\n"
-                   "/**\n"
-                   " * Returns the collection in the $name$ field.\n",
-                   "name", field->name());
-    printer->Print(
-        " * @return {Object} The values in the field.\n"
-        " */\n");
-    printer->Print("$prefix$.prototype.$field$Collection = function() {\n",
-                   "prefix", JsFullName(field->containing_type()->file(),
-                                        field->containing_type()->full_name()),
-                   "field", field->camelcase_name());
-    printer->Indent();
-    printer->Print(
-        "return (this.collection$$Values($number$));"
-        "\n",
-        "number", number.str());
-    printer->Outdent();
-    printer->Print("};\n"
-                   "\n");
+    if (field->label() == google::protobuf::FieldDescriptor::LABEL_REPEATED) {
+      printer->Print("\n"
+                     "/**\n"
+                     " * Returns the collection in the $name$ field.\n",
+                     "name", field->name());
+      printer->Print(
+          " * @return {Object} The values in the field.\n"
+          " */\n");
+      printer->Print("$prefix$.prototype.$field$Collection = function() {\n",
+                     "prefix", JsFullName(field->containing_type()->file(),
+                                          field->containing_type()->full_name()),
+                     "field", field->camelcase_name());
+      printer->Indent();
+      printer->Print(
+          "return (this.collection$$Values($number$));"
+          "\n",
+          "number", number.str());
+      printer->Outdent();
+      printer->Print("};\n"
+                     "\n");
+    }
   } // if (CodeGenerator::advanced_)
 }
 
@@ -654,11 +670,16 @@ void CodeGenerator::GenDescriptorMetadata(
     if (i != message->field_count() - 1) {
       printer->Print(",\n");
     } else {
-      printer->Print("\n");
+      printer->Print("");
     }
   }
+  printer->Print("}\n");
+  // collection type
+  if (CodeGenerator::advanced_) {
+    printer->Print(", $full_name$Collection\n", "full_name", message->full_name());
+  }
   printer->Outdent();
-  printer->Print("});\n");
+  printer->Print(");\n");
 
   // nested messages (recursively process)
   for (int i = 0; i < message->nested_type_count(); ++i) {
@@ -804,6 +825,33 @@ void CodeGenerator::GenFieldDescriptorMetadata(
                  "type", js_object);
   printer->Outdent();
   printer->Print("}");
+}
+
+void CodeGenerator::GenCollection(
+      const google::protobuf::Descriptor *message,
+      google::protobuf::io::Printer *printer) {
+  printer->Print("\n"
+                 "/**\n"
+                 " * Collection for $name$.\n"
+                 " * @constructor\n"
+                 " * @extends {$js_collection_superclass$}\n"
+                 " */\n",
+                 "name", message->name(),
+                 "js_collection_superclass", CodeGenerator::js_collection_superclass_);
+  printer->Print("$name$Collection = function() {\n",
+                 "name", JsFullName(message->file(),
+                                  message->full_name()));
+  printer->Indent();
+  printer->Print("$js_collection_superclass$.apply(this);\n",
+                 "js_collection_superclass", CodeGenerator::js_collection_superclass_);
+  printer->Outdent();
+  printer->Print("};\n"
+                 "goog.inherits($name$Collection, $js_collection_superclass$);\n"
+                 "\n"
+                 "\n",
+                 "name", JsFullName(message->file(),
+                                    message->full_name()),
+                  "js_collection_superclass", CodeGenerator::js_collection_superclass_);
 }
 
 }  // namespace js
