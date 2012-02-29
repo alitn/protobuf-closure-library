@@ -39,6 +39,7 @@ CodeGenerator::CodeGenerator(const std::string &name)
 CodeGenerator::~CodeGenerator() {}
 
 std::string CodeGenerator::js_superclass_ = "goog.proto2.Message";
+std::string CodeGenerator::js_model_superclass_ = "";
 std::string CodeGenerator::js_collection_superclass_ = "";
 bool CodeGenerator::advanced_ = false;
 
@@ -54,6 +55,8 @@ bool CodeGenerator::Generate(
   for (unsigned int i = 0; i < options.size(); i++) {
     if (options[i].first == "js_superclass") {
       CodeGenerator::js_superclass_ = options[i].second;
+    } else if (options[i].first == "js_model_superclass") {
+      CodeGenerator::js_model_superclass_ = options[i].second;
     } else if (options[i].first == "js_collection_superclass") {
       CodeGenerator::js_collection_superclass_ = options[i].second;
     } else if (options[i].first == "advanced" && options[i].second == "true") {
@@ -100,6 +103,8 @@ bool CodeGenerator::Generate(
   printer.Print("goog.require('$js_superclass$');\n",
                 "js_superclass", CodeGenerator::js_superclass_);
   if (CodeGenerator::advanced_) {
+    printer.Print("goog.require('$js_model_superclass$');\n",
+                  "js_model_superclass", CodeGenerator::js_model_superclass_);
     printer.Print("goog.require('$js_collection_superclass$');\n",
                   "js_collection_superclass", CodeGenerator::js_collection_superclass_);
   }
@@ -194,27 +199,35 @@ void CodeGenerator::GenEnumDescriptorGoogProvides(
 void CodeGenerator::GenDescriptor(
     const google::protobuf::Descriptor *message,
     google::protobuf::io::Printer *printer) {
+  if (CodeGenerator::advanced_) {
+    // model
+    CodeGenerator::GenModel(message, printer);
+  }
+
   printer->Print("\n"
                  "/**\n"
-                 " * Message $name$.\n"
+                 " * Message$for_model$ $name$.\n"
                  " * @constructor\n"
                  " * @extends {$js_superclass$}\n"
                  " */\n",
                  "name", message->name(),
+                 "for_model", CodeGenerator::advanced_ ? " for model" : "",
                  "js_superclass", CodeGenerator::js_superclass_);
-  printer->Print("$name$ = function() {\n",
+  printer->Print("$name$$message$ = function() {\n",
                  "name", JsFullName(message->file(),
-                                    message->full_name()));
+                                    message->full_name()),
+                 "message", CodeGenerator::advanced_ ? ".Message" : "");
   printer->Indent();
-  printer->Print("$js_superclass$.apply(this);\n",
+  printer->Print("$js_superclass$.call(this);\n",
                  "js_superclass", CodeGenerator::js_superclass_);
   printer->Outdent();
   printer->Print("};\n"
-                 "goog.inherits($name$, $js_superclass$);\n"
+                 "goog.inherits($name$$message$, $js_superclass$);\n"
                  "\n"
                  "\n",
                  "name", JsFullName(message->file(),
                                     message->full_name()),
+                 "message", CodeGenerator::advanced_ ? ".Message" : "",
                   "js_superclass", CodeGenerator::js_superclass_);
 
   printer->Print(
@@ -224,10 +237,11 @@ void CodeGenerator::GenDescriptor(
       " * @return {!$name$} The cloned message.\n"
       " * @override\n"
       " */\n"
-      "$name$.prototype.clone;\n",
+      "$name$$message$.prototype.clone;\n",
       "js_superclass", CodeGenerator::js_superclass_,
       "name", JsFullName(message->file(),
-                         message->full_name()));
+                         message->full_name()),
+      "message", CodeGenerator::advanced_ ? ".Message" : "");
 
   // fields
   for (int i = 0; i < message->field_count(); ++i) {
@@ -252,8 +266,8 @@ void CodeGenerator::GenDescriptor(
                    "\n");
   }
 
-  // collection
   if (CodeGenerator::advanced_) {
+    // collection
     CodeGenerator::GenCollection(message, printer);
   }
 }
@@ -428,7 +442,7 @@ void CodeGenerator::GenFieldDescriptor(
                    " * Sets the value of the $name$ field.\n",
                    "name", field->name());
     printer->Print(" * @param {$opt$$type$} value The value.\n"
-                   " * @param {Object} opt_options Options.\n"
+                   " * @param {Object=} opt_options Options.\n"
                    " */\n",
                    "opt", type_is_primitive ? "" : "!",
                    "type", type);
@@ -559,27 +573,14 @@ void CodeGenerator::GenFieldDescriptor(
                                         field->containing_type()->full_name()),
                    "field", upper_name);
     printer->Indent();
-    printer->Print("this.listen('update:$number$', callback, context);\n",
-                   "number", number.str());
-    printer->Outdent();
-    printer->Print("};\n");
-    printer->Print("\n"
-                   "/**\n"
-                   " * Clears update event on $name$ field.\n"
-                   " */\n",
-                   "name", field->name());
-    printer->Print("$prefix$.prototype.forgetUpdate$field$ = function() {\n",
-                   "prefix", JsFullName(field->containing_type()->file(),
-                                        field->containing_type()->full_name()),
-                   "field", upper_name);
-    printer->Indent();
-    printer->Print("this.forget('update:$number$');\n",
+    printer->Print("this.listen(this.eventNameUpdate($number$), callback, context);\n",
                    "number", number.str());
     printer->Outdent();
     printer->Print("};\n");
 
     // collections
-    if (field->label() == google::protobuf::FieldDescriptor::LABEL_REPEATED) {
+    if (field->label() == google::protobuf::FieldDescriptor::LABEL_REPEATED &&
+        field->type() == google::protobuf::FieldDescriptor::TYPE_MESSAGE) {
       printer->Print("\n"
                      "/**\n"
                      " * Returns the collection in the $name$ field.\n",
@@ -593,7 +594,7 @@ void CodeGenerator::GenFieldDescriptor(
                      "field", field->camelcase_name());
       printer->Indent();
       printer->Print(
-          "return (this.collection$$Values($number$));"
+          "return (this.message_.collection$$Values($number$));"
           "\n",
           "number", number.str());
       printer->Outdent();
@@ -639,20 +640,22 @@ void CodeGenerator::GenDescriptorMetadata(
       google::protobuf::io::Printer *printer) {
   printer->Print("\n"
                  "\n"
-                 "$js_superclass$.set$$Metadata($name$, {\n",
+                 "$js_superclass$.set$$Metadata($name$$message$, {\n",
                  "js_superclass", CodeGenerator::js_superclass_,
                  "name", JsFullName(message->file(),
-                                    message->full_name()));
+                                    message->full_name()),
+                 "message", CodeGenerator::advanced_ ? ".Message" : "");
   printer->Indent();
   printer->Print("0: {\n");
   printer->Indent();
   printer->Print("name: '$name$',\n",
                  "name", message->name());
   if (message->containing_type() != NULL) {
-    printer->Print("containingType: $type$,\n",
+    printer->Print("containingType: $type$$message$,\n",
                    "type",
                    JsFullName(message->containing_type()->file(),
-                              message->containing_type()->full_name()));
+                              message->containing_type()->full_name()),
+                   "message", CodeGenerator::advanced_ ? ".Message" : "");
   }
   printer->Print("fullName: '$fullname$'\n",
                  "fullname", message->full_name());
@@ -674,8 +677,10 @@ void CodeGenerator::GenDescriptorMetadata(
     }
   }
   printer->Print("}\n");
-  // collection type
   if (CodeGenerator::advanced_) {
+    // model type
+    printer->Print(", $full_name$\n", "full_name", message->full_name());
+    // collection type
     printer->Print(", $full_name$Collection\n", "full_name", message->full_name());
   }
   printer->Outdent();
@@ -797,7 +802,8 @@ void CodeGenerator::GenFieldDescriptorMetadata(
       field->type() == google::protobuf::FieldDescriptor::TYPE_GROUP ||
       field->type() == google::protobuf::FieldDescriptor::TYPE_MESSAGE) {
     js_object = JsFullName(field->message_type()->file(),
-                           field->message_type()->full_name());
+                           field->message_type()->full_name()) +
+                (CodeGenerator::advanced_ ? ".Message" : "");
   } else if (field->type() == google::protobuf::FieldDescriptor::TYPE_ENUM) {
     js_object = JsFullName(field->enum_type()->file(),
                            field->enum_type()->full_name());
@@ -825,6 +831,34 @@ void CodeGenerator::GenFieldDescriptorMetadata(
                  "type", js_object);
   printer->Outdent();
   printer->Print("}");
+}
+
+void CodeGenerator::GenModel(
+      const google::protobuf::Descriptor *message,
+      google::protobuf::io::Printer *printer) {
+  printer->Print("\n"
+                 "/**\n"
+                 " * Model $name$.\n"
+                 " * @param {Object=} opt_attribs Attributes.\n"
+                 " * @constructor\n"
+                 " * @extends {$js_model_superclass$}\n"
+                 " */\n",
+                 "name", message->name(),
+                 "js_model_superclass", CodeGenerator::js_model_superclass_);
+  printer->Print("$name$ = function(opt_attribs) {\n",
+                 "name", JsFullName(message->file(),
+                                  message->full_name()));
+  printer->Indent();
+  printer->Print("$js_model_superclass$.call(this, opt_attribs);\n",
+                 "js_model_superclass", CodeGenerator::js_model_superclass_);
+  printer->Outdent();
+  printer->Print("};\n"
+                 "goog.inherits($name$, $js_model_superclass$);\n"
+                 "\n"
+                 "\n",
+                 "name", JsFullName(message->file(),
+                                    message->full_name()),
+                  "js_model_superclass", CodeGenerator::js_model_superclass_);
 }
 
 void CodeGenerator::GenCollection(
