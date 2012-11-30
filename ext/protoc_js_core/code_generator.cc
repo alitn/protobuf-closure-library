@@ -565,7 +565,8 @@ void CodeGenerator::GenFieldDescriptor(
                    "/**\n"
                    " * Listens to update event on $name$ field.\n"
                    " * @param {Function} callback The callback to invoke.\n"
-                   " * @param {Object} context The 'this' sent to callback..\n"
+                   " * @param {Object} context The 'this' sent to callback.\n"
+                   " * @return {number} Listerner key.\n"
                    " */\n",
                    "name", field->name());
     printer->Print("$prefix$.prototype.onUpdate$field$ = function(callback, context) {\n",
@@ -573,7 +574,7 @@ void CodeGenerator::GenFieldDescriptor(
                                         field->containing_type()->full_name()),
                    "field", upper_name);
     printer->Indent();
-    printer->Print("this.listen(this.eventNameUpdate($number$), callback, context);\n",
+    printer->Print("return this.listen(this.eventNameUpdate($number$), callback, context);\n",
                    "number", number.str());
     printer->Outdent();
     printer->Print("};\n");
